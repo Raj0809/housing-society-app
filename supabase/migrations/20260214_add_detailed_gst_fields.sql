@@ -1,0 +1,13 @@
+-- Add detailed GST fields to maintenance_fees
+ALTER TABLE maintenance_fees
+ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC,
+ADD COLUMN IF NOT EXISTS cgst_amount NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS sgst_amount NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS igst_amount NUMERIC DEFAULT 0;
+
+-- Add detailed GST fields to expenses
+ALTER TABLE expenses
+ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC,
+ADD COLUMN IF NOT EXISTS cgst_amount NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS sgst_amount NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS igst_amount NUMERIC DEFAULT 0;
