@@ -12,7 +12,7 @@ import { ChatChannel } from '@/types'
 
 export default function ChatLayout() {
     const { profile } = useAuth()
-    const [activeRoom, setActiveRoom] = useState<{ id: string, name: string }>({ id: 'lobby', name: 'Community Lobby' })
+    const [activeRoom, setActiveRoom] = useState<{ id: string, name: string } | null>(null)
     const [channels, setChannels] = useState<ChatChannel[]>([])
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [newChannelName, setNewChannelName] = useState('')
@@ -32,22 +32,27 @@ export default function ChatLayout() {
                 { id: 'lobby', name: 'Community Lobby', type: 'public' },
                 { id: 'announcements', name: 'Announcements', type: 'public' }
             ]
-            // Merge defaults with locals, avoiding duplicates
             const all = [...defaultChannels, ...localChannels.filter((c: any) => !defaultChannels.find(d => d.id === c.id))]
             setChannels(all as any)
+            if (!activeRoom) setActiveRoom({ id: 'lobby', name: 'Community Lobby' })
             return
         }
 
         try {
             const { data } = await supabase.from('chat_channels').select('*').order('created_at')
             if (data && data.length > 0) {
-                setChannels([{ id: 'lobby', name: 'Community Lobby', type: 'public' } as any, ...data])
+                setChannels(data)
+                // Auto-select the first channel (lobby) if nothing is selected
+                if (!activeRoom) {
+                    const lobby = data.find(c => c.type === 'society_wide') || data[0]
+                    setActiveRoom({ id: lobby.id, name: lobby.name })
+                }
             } else {
-                setChannels([{ id: 'lobby', name: 'Community Lobby', type: 'public' } as any])
+                setChannels([])
             }
         } catch (e) {
             console.error(e)
-            setChannels([{ id: 'lobby', name: 'Community Lobby', type: 'public' } as any])
+            setChannels([])
         }
     }
 
@@ -102,8 +107,8 @@ export default function ChatLayout() {
                     {channels.map(channel => (
                         <Button
                             key={channel.id}
-                            variant={activeRoom.id === channel.id ? 'secondary' : 'ghost'}
-                            className={cn("w-full justify-start", activeRoom.id === channel.id && "bg-primary/10 text-primary")}
+                            variant={activeRoom?.id === channel.id ? 'secondary' : 'ghost'}
+                            className={cn("w-full justify-start", activeRoom?.id === channel.id && "bg-primary/10 text-primary")}
                             onClick={() => setActiveRoom({ id: channel.id, name: channel.name })}
                         >
                             <Hash className="mr-2 h-4 w-4 opacity-50" />
@@ -115,7 +120,13 @@ export default function ChatLayout() {
 
             {/* Main Chat Area */}
             <div className="flex-1 min-w-0 h-full">
-                <ChatWindow roomId={activeRoom.id} title={activeRoom.name} />
+                {activeRoom ? (
+                    <ChatWindow roomId={activeRoom.id} title={activeRoom.name} />
+                ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        Select a channel to start chatting
+                    </div>
+                )}
             </div>
 
             {/* Create Channel Modal */}

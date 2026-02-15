@@ -547,7 +547,7 @@ export default function MaintenanceList() {
                                 ) : filteredFees.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                                            No maintenance records found. Generate some invoices to get started.
+                                            {isAdmin ? 'No maintenance records found. Generate some invoices to get started.' : 'No invoices found for your unit.'}
                                         </td>
                                     </tr>
                                 ) : (
