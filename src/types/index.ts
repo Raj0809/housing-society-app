@@ -2,9 +2,9 @@ export type UserRole = 'app_admin' | 'management' | 'administration' | 'resident
 
 export interface User {
     id: string
-    email: string
+    email?: string
     full_name: string
-    phone?: string
+    phone: string
     unit_number?: string
     unit_id?: string
     role: UserRole

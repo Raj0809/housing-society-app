@@ -119,7 +119,7 @@ export default function DashboardPage() {
                 recentComplaints,
                 recentBookings
             ] = await Promise.all([
-                supabase.from('users').select('*', { count: 'exact', head: true }),
+                supabase.from('profiles').select('*', { count: 'exact', head: true }),
                 supabase.from('maintenance_fees').select('amount').eq('payment_status', 'pending'),
                 supabase.from('complaints').select('*', { count: 'exact', head: true }).neq('status', 'resolved').neq('status', 'closed'),
                 supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -302,7 +302,7 @@ export default function DashboardPage() {
                                 recentActivity.map((item) => (
                                     <div key={item.id + item.type} className="flex items-start gap-3 group">
                                         <div className={`mt-0.5 h-2 w-2 rounded-full flex-shrink-0 ${item.type === 'notice' ? 'bg-blue-500' :
-                                                item.type === 'complaint' ? 'bg-orange-500' : 'bg-purple-500'
+                                            item.type === 'complaint' ? 'bg-orange-500' : 'bg-purple-500'
                                             }`} />
                                         <div className="flex-1 space-y-1">
                                             <p className="text-sm font-medium leading-none group-hover:text-primary transition-colors">

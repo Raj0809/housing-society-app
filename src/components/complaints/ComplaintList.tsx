@@ -111,7 +111,7 @@ export default function ComplaintList() {
 
         const { data } = await supabase
             .from('complaint_replies')
-            .select('*, user:users(full_name, role)')
+            .select('*, user:profiles(full_name, role)')
             .eq('complaint_id', complaintId)
             .order('created_at', { ascending: true })
 
@@ -189,7 +189,7 @@ export default function ComplaintList() {
             return
         }
 
-        const { data, error } = await supabase.from('complaint_replies').insert(reply).select('*, user:users(full_name, role)').single()
+        const { data, error } = await supabase.from('complaint_replies').insert(reply).select('*, user:profiles(full_name, role)').single()
         if (data) setReplies(prev => [...prev, data as any])
         setNewReply('')
         setReplying(false)

@@ -24,7 +24,7 @@ export default function CommitteeList() {
                 }
 
                 const { data, error } = await supabase
-                    .from('users')
+                    .from('profiles')
                     .select('*')
                     .in('role', ['app_admin', 'management'])
                     .order('full_name')

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { createUser } from '@/app/actions/auth'
 import { UserRole, Unit } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
@@ -54,7 +55,7 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
             if (initialData?.id) {
                 // Update existing user
                 const { error } = await supabase
-                    .from('users')
+                    .from('profiles')
                     .update({
                         full_name: formData.fullName,
                         phone: formData.phone,
@@ -92,11 +93,20 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
                     localStorage.setItem('mock_users', JSON.stringify([newUser, ...local]))
 
                 } else {
-                    // Real implementation requires Admin API or invitation flow
-                    // For now, we warn.
-                    setError("User creation requires backend admin functions. Admin API integration pending.")
-                    setLoading(false)
-                    return
+                    // Real implementation using Server Action
+                    const result = await createUser({
+                        fullName: formData.fullName,
+                        email: formData.email || undefined,
+                        phone: formData.phone,
+                        role: formData.role,
+                        unitNumber: formData.unitNumber,
+                        unitId: formData.unitId,
+                        isActive: formData.isActive
+                    })
+
+                    if (result.error) {
+                        throw new Error(result.error)
+                    }
                 }
             }
 
@@ -129,20 +139,19 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
                 </div>
 
                 <div className="grid gap-2">
-                    <label htmlFor="email" className="text-sm font-medium">Email</label>
+                    <label htmlFor="email" className="text-sm font-medium">Email (Optional)</label>
                     <input
                         id="email"
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                        required
                         disabled={!!initialData}
                     />
                 </div>
 
                 <div className="grid gap-2">
-                    <label htmlFor="phone" className="text-sm font-medium">Phone Number</label>
+                    <label htmlFor="phone" className="text-sm font-medium">Phone Number <span className="text-destructive">*</span></label>
                     <input
                         id="phone"
                         type="tel"
@@ -150,6 +159,7 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         placeholder="+1 234 567 890"
+                        required
                     />
                 </div>
 

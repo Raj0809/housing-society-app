@@ -87,7 +87,7 @@ export default function NoticeBoard() {
         try {
             const [noticesRes, commentsRes, reactionsRes] = await Promise.all([
                 supabase.from('notices').select('*').order('is_pinned', { ascending: false }).order('created_at', { ascending: false }),
-                supabase.from('notice_comments').select('*, user:users(full_name, profile_image_url)').order('created_at'),
+                supabase.from('notice_comments').select('*, user:profiles(full_name, profile_image_url)').order('created_at'),
                 supabase.from('notice_reactions').select('*')
             ])
 
@@ -252,7 +252,7 @@ export default function NoticeBoard() {
         }
 
         try {
-            const { data, error } = await supabase.from('notice_comments').insert(comment).select('*, user:users(full_name, profile_image_url)').single()
+            const { data, error } = await supabase.from('notice_comments').insert(comment).select('*, user:profiles(full_name, profile_image_url)').single()
             if (error) throw error
             if (data) {
                 setComments(prev => ({

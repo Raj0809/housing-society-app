@@ -5,8 +5,12 @@ import { supabase } from '@/lib/supabase/client'
 import { User, UserRole } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, MoreVertical, Upload, Ban, CheckCircle, XCircle, UserCheck, Loader2 } from 'lucide-react'
+import { Plus, Search, MoreVertical, Upload, Ban, CheckCircle, XCircle, UserCheck, Loader2, Key } from 'lucide-react'
 import Papa from 'papaparse'
+import { resetUserPassword } from '@/app/actions/auth'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface UserListProps {
     onEdit?: (user: User) => void
@@ -18,6 +22,47 @@ export default function UserList({ onEdit }: UserListProps) {
     const [search, setSearch] = useState('')
     const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active')
     const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+    // Password Reset State
+    const [resetDialogOpen, setResetDialogOpen] = useState(false)
+    const [userToReset, setUserToReset] = useState<User | null>(null)
+    const [newPassword, setNewPassword] = useState('')
+    const [resetLoading, setResetLoading] = useState(false)
+
+    const handleOpenReset = (user: User) => {
+        setUserToReset(user)
+        setNewPassword('')
+        setResetDialogOpen(true)
+    }
+
+    const handleResetSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!userToReset || !newPassword) return
+
+        setResetLoading(true)
+        try {
+            if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
+                // Mock
+                await new Promise(r => setTimeout(r, 1000))
+                alert(`Password for ${userToReset.full_name} would be reset to: ${newPassword}`)
+                setResetDialogOpen(false)
+                return
+            }
+
+            const result = await resetUserPassword(userToReset.id, newPassword)
+            if (result.error) {
+                alert('Error: ' + result.error)
+            } else {
+                alert('Password reset successfully')
+                setResetDialogOpen(false)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('Failed to reset password')
+        } finally {
+            setResetLoading(false)
+        }
+    }
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
@@ -50,7 +95,7 @@ export default function UserList({ onEdit }: UserListProps) {
                 } else {
                     // Real Upload Logic (Placeholder)
                     try {
-                        const { error } = await supabase.from('users').insert(newUsers)
+                        const { error } = await supabase.from('profiles').insert(newUsers)
                         if (error) throw error
                         fetchUsers()
                     } catch (error) {
@@ -113,7 +158,7 @@ export default function UserList({ onEdit }: UserListProps) {
             }
 
             let query = supabase
-                .from('users')
+                .from('profiles')
                 .select('*')
                 .order('created_at', { ascending: false })
 
@@ -162,7 +207,7 @@ export default function UserList({ onEdit }: UserListProps) {
 
         try {
             const { error } = await supabase
-                .from('users')
+                .from('profiles')
                 .update({ is_active: isActive })
                 .eq('id', user.id)
 
@@ -196,7 +241,7 @@ export default function UserList({ onEdit }: UserListProps) {
 
         try {
             const { error } = await supabase
-                .from('users')
+                .from('profiles')
                 .update({ approval_status: status })
                 .eq('id', user.id)
 
@@ -402,7 +447,16 @@ export default function UserList({ onEdit }: UserListProps) {
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                                                                className="h-8 w-8"
+                                                                title="Reset Password"
+                                                                onClick={() => handleOpenReset(user)}
+                                                            >
+                                                                <Key className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8"
                                                                 title={user.is_active ? "Deactivate User" : "Activate User"}
                                                                 onClick={() => handleToggleStatus(user)}
                                                             >
@@ -429,6 +483,37 @@ export default function UserList({ onEdit }: UserListProps) {
                     </div >
                 </div >
             </CardContent >
+
+            <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Reset Password</DialogTitle>
+                        <DialogDescription>
+                            Enter a new password for {userToReset?.full_name}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleResetSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="new-password">New Password</Label>
+                            <Input
+                                id="new-password"
+                                type="text"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password"
+                                minLength={6}
+                                required
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setResetDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={resetLoading}>
+                                {resetLoading ? 'Resetting...' : 'Reset Password'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </Card >
     )
 }

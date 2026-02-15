@@ -66,7 +66,7 @@ export default function VehicleList() {
         try {
             let query = supabase
                 .from('vehicles')
-                .select('*, user:users(full_name, unit_number)')
+                .select('*, user:profiles(full_name, unit_number)')
                 .order('created_at', { ascending: false })
 
             if (!isSecurityOrAdmin && profile?.id) {
@@ -106,7 +106,7 @@ export default function VehicleList() {
                         { id: 'u3', full_name: 'Mike Johnson', unit_number: 'A-102' }
                     ])
                 } else {
-                    const { data } = await supabase.from('users').select('id, full_name, unit_number').order('unit_number')
+                    const { data } = await supabase.from('profiles').select('id, full_name, unit_number').order('unit_number')
                     if (data) setUsers(data as any)
                 }
             }

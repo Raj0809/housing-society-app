@@ -66,7 +66,7 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
 
         let query = supabase
             .from('chat_messages')
-            .select('*, sender:users(full_name, profile_image_url)')
+            .select('*, sender:profiles(full_name, profile_image_url)')
             .order('created_at', { ascending: true })
 
         if (roomId === 'lobby') {

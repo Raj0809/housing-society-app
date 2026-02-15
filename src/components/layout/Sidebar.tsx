@@ -8,7 +8,7 @@ import {
     Users, Home, CreditCard, FileText, MessageSquare,
     Calendar, Shield, Activity, Settings, LogOut,
     LayoutDashboard, Megaphone, Receipt, Bell,
-    HelpCircle, UserCheck, Menu, Car, Phone
+    HelpCircle, UserCheck, Menu, Car, Phone, User
 } from 'lucide-react'
 
 const Sidebar = () => {
@@ -33,6 +33,7 @@ const Sidebar = () => {
         { href: '/dashboard/vehicles', label: 'Vehicles', icon: Car, roles: ['app_admin', 'management', 'security', 'resident'] },
         { href: '/dashboard/contacts', label: 'Helpline Numbers', icon: Phone, roles: ['all'] },
         { href: '/dashboard/reports', label: 'Reports', icon: Activity, roles: ['app_admin', 'management'] },
+        { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['all'] },
     ]
 
     const filteredLinks = links.filter(link =>
