@@ -21,21 +21,27 @@ export default function LoginPage() {
         setError(null)
 
         try {
-            // Mock Login for Preview
-            if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
-                // Simulate network delay
-                await new Promise(resolve => setTimeout(resolve, 800))
-                router.push('/dashboard')
-                router.refresh()
-                return
-            }
-
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             })
 
             if (error) throw error
+
+            // Check if user must change password
+            if (data.user) {
+                const { data: userProfile } = await supabase
+                    .from('users')
+                    .select('must_change_password')
+                    .eq('id', data.user.id)
+                    .single()
+
+                if (userProfile?.must_change_password) {
+                    router.push('/change-password')
+                    router.refresh()
+                    return
+                }
+            }
 
             router.push('/dashboard')
             router.refresh()
@@ -66,25 +72,30 @@ export default function LoginPage() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email</label>
+                            <label htmlFor="email" className="text-sm font-medium leading-none">Email</label>
                             <input
                                 id="email"
                                 type="email"
                                 placeholder="m@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Password</label>
+                            <div className="flex items-center justify-between">
+                                <label htmlFor="password" className="text-sm font-medium leading-none">Password</label>
+                                <Link href="/forgot-password" className="text-sm text-primary underline-offset-4 hover:underline">
+                                    Forgot password?
+                                </Link>
+                            </div>
                             <input
                                 id="password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 required
                             />
                         </div>
@@ -95,7 +106,7 @@ export default function LoginPage() {
                             Sign In
                         </Button>
                         <p className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{" "}
+                            {"Don't have an account? "}
                             <Link href="/register" className="font-semibold text-primary underline-offset-4 hover:underline">
                                 Sign up
                             </Link>

@@ -10,9 +10,20 @@ export interface User {
     role: UserRole
     profile_image_url?: string
     is_active: boolean
-    approval_status?: 'pending' | 'approved' | 'rejected'
+    must_change_password?: boolean
     created_at: string
     updated_at: string
+}
+
+export interface PasswordResetRequest {
+    id: string
+    user_id: string
+    status: 'pending' | 'approved' | 'rejected'
+    requested_at: string
+    resolved_at?: string
+    resolved_by?: string
+    admin_notes?: string
+    user?: { full_name: string; email: string }
 }
 
 export interface SocietyProfile {

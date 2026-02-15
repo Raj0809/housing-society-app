@@ -10,7 +10,9 @@ interface AuthContextType {
     profile: UserProfile | null
     session: Session | null
     isLoading: boolean
+    mustChangePassword: boolean
     signOut: () => Promise<void>
+    refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -20,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [mustChangePassword, setMustChangePassword] = useState(false)
 
     useEffect(() => {
         // Mock Auth for Preview if using placeholder keys OR missing keys
@@ -41,8 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 full_name: 'Preview User',
                 role: 'app_admin',
                 is_active: true,
-                unit_id: 'mock-unit-id',
-                unit_number: 'A-101',
+                must_change_password: false,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 fetchProfile(session.user.id)
             } else {
                 setProfile(null)
+                setMustChangePassword(false)
                 setIsLoading(false)
             }
         })
@@ -87,6 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (error) {
                 console.error('Error fetching profile:', error)
             } else {
+                // Check must_change_password flag
+                setMustChangePassword(userConfig?.must_change_password ?? false)
+
                 // Fetch Unit ID
                 const { data: unitData } = await supabase
                     .from('units')
@@ -109,15 +115,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
+    const refreshProfile = async () => {
+        if (user) {
+            await fetchProfile(user.id)
+        }
+    }
+
     const signOut = async () => {
         await supabase.auth.signOut()
         setUser(null)
         setSession(null)
         setProfile(null)
+        setMustChangePassword(false)
     }
 
     return (
-        <AuthContext.Provider value={{ user, session, profile, isLoading, signOut }}>
+        <AuthContext.Provider value={{ user, session, profile, isLoading, mustChangePassword, signOut, refreshProfile }}>
             {children}
         </AuthContext.Provider>
     )

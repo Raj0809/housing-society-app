@@ -79,7 +79,7 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
                         unit_id: formData.unitId,
                         role: formData.role,
                         is_active: formData.isActive,
-                        approval_status: 'approved',
+                        must_change_password: false,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
                     }

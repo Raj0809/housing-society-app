@@ -13,7 +13,7 @@ import { format, addHours, parseISO, isSameDay, addDays, getDaysInMonth, differe
 import { Search, MapPin, Clock, IndianRupee, Calendar as CalIcon, User, Plus, Pencil, X, FileText, AlertTriangle } from 'lucide-react'
 import { Facility, Booking, BookingCancellation, BookingModification } from '@/types'
 import { cn } from '@/lib/utils'
-import { DateRange } from 'react-day-picker'
+import type { DateRange } from 'react-day-picker'
 
 // Mock Data for Facilities
 const MOCK_FACILITIES: Facility[] = [
