@@ -53,18 +53,24 @@ export default function UserForm({ onSuccess, onCancel, initialData }: UserFormP
 
         try {
             if (initialData?.id) {
-                // Update existing user
+                // Update existing user profile
                 const { error } = await supabase
                     .from('profiles')
                     .update({
                         full_name: formData.fullName,
-                        phone: formData.phone,
-                        unit_number: formData.unitNumber,
-                        unit_id: formData.unitId,
+                        phone: formData.phone || null,
                         role: formData.role,
                         is_active: formData.isActive
                     })
                     .eq('id', initialData.id)
+
+                // If a unit is selected, update the unit's owner
+                if (!error && formData.unitId) {
+                    await supabase
+                        .from('units')
+                        .update({ owner_id: initialData.id })
+                        .eq('id', formData.unitId)
+                }
 
                 if (error) throw error
 
