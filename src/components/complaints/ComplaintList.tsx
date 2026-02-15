@@ -166,7 +166,7 @@ export default function ComplaintList() {
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
             setTimeout(() => {
-                const complaintWithId = { ...newComplaint, id: 'mock-' + Date.now(), user: { full_name: profile?.full_name || 'Me', unit_number: profile?.unit_number } }
+                const complaintWithId = { ...newComplaint, id: 'mock-' + Date.now(), user: { full_name: profile?.full_name || 'Me' } }
                 const local = JSON.parse(localStorage.getItem('mock_complaints') || '[]')
                 localStorage.setItem('mock_complaints', JSON.stringify([...local, complaintWithId]))
 
