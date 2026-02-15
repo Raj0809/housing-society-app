@@ -21,6 +21,7 @@ export default function ComplaintList() {
 
     // Detail View State
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
+    const [complaintAttachments, setComplaintAttachments] = useState<{ name: string; url: string }[]>([])
     const [replies, setReplies] = useState<ComplaintReply[]>([])
     const [newReply, setNewReply] = useState('')
     const [replying, setReplying] = useState(false)
@@ -45,7 +46,10 @@ export default function ComplaintList() {
     useEffect(() => {
         if (selectedComplaint) {
             fetchReplies(selectedComplaint.id)
+            fetchAttachments(selectedComplaint.id)
             setAssignee(selectedComplaint.assigned_to || '')
+        } else {
+            setComplaintAttachments([])
         }
     }, [selectedComplaint])
 
@@ -116,6 +120,34 @@ export default function ComplaintList() {
             .order('created_at', { ascending: true })
 
         if (data) setReplies(data as any)
+    }
+
+    const fetchAttachments = async (complaintId: string) => {
+        if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
+            setComplaintAttachments([])
+            return
+        }
+
+        try {
+            const { data: files, error } = await supabase.storage
+                .from('society_documents')
+                .list(`complaints/${complaintId}`)
+
+            if (error || !files || files.length === 0) {
+                setComplaintAttachments([])
+                return
+            }
+
+            const attachments = files.map(file => {
+                const { data: urlData } = supabase.storage
+                    .from('society_documents')
+                    .getPublicUrl(`complaints/${complaintId}/${file.name}`)
+                return { name: file.name, url: urlData.publicUrl }
+            })
+            setComplaintAttachments(attachments)
+        } catch {
+            setComplaintAttachments([])
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -417,17 +449,21 @@ export default function ComplaintList() {
                             </div>
                             <div className="px-4 py-3 bg-white dark:bg-slate-900 border rounded-lg shadow-sm text-sm whitespace-pre-wrap">
                                 {selectedComplaint.description}
-                                {selectedComplaint.attachment_url && (
-                                    <div className="mt-3 pt-3 border-t">
-                                        <a
-                                            href={selectedComplaint.attachment_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center gap-2 text-primary hover:underline bg-muted/30 p-2 rounded-md border w-fit"
-                                        >
-                                            <FileText className="h-4 w-4" />
-                                            <span className="text-xs">View Attachment</span>
-                                        </a>
+                                {complaintAttachments.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t space-y-2">
+                                        <p className="text-xs font-semibold text-muted-foreground">Attachments:</p>
+                                        {complaintAttachments.map((att, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={att.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex items-center gap-2 text-primary hover:underline bg-muted/30 p-2 rounded-md border w-fit"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                <span className="text-xs">{att.name}</span>
+                                            </a>
+                                        ))}
                                     </div>
                                 )}
                                 {selectedComplaint.resolution_notes && (

@@ -20,11 +20,11 @@ interface DBChatMessage {
 }
 
 interface ChatWindowProps {
-    roomId?: string // channel id or 'lobby'
+    roomId: string // actual channel UUID from chat_channels
     title: string
 }
 
-export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps) {
+export default function ChatWindow({ roomId, title }: ChatWindowProps) {
     const { profile } = useAuth()
     const [messages, setMessages] = useState<DBChatMessage[]>([])
     const [newMessage, setNewMessage] = useState('')
@@ -32,6 +32,7 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+        if (!roomId) return
         fetchMessages()
 
         // Real-time subscription
@@ -39,9 +40,7 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
             .channel(`chat:${roomId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
                 const newMsg = payload.new as DBChatMessage
-                // Filter for current room
-                const channelId = roomId === 'lobby' ? null : roomId
-                if (newMsg.channel_id === channelId) {
+                if (newMsg.channel_id === roomId) {
                     fetchMessages()
                 }
             })
@@ -74,13 +73,8 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
         let query = supabase
             .from('chat_messages')
             .select('*, sender:profiles!chat_messages_sender_id_fkey(full_name, profile_image_url)')
+            .eq('channel_id', roomId)
             .order('created_at', { ascending: true })
-
-        if (roomId === 'lobby') {
-            query = query.is('channel_id', null)
-        } else {
-            query = query.eq('channel_id', roomId)
-        }
 
         const { data, error } = await query
         if (error) console.error('Error fetching messages:', error)
@@ -94,12 +88,12 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
         setSending(true)
         const msg = {
             sender_id: profile?.id,
-            channel_id: roomId === 'lobby' ? null : roomId,
+            channel_id: roomId,
             message_text: newMessage.trim(),
         }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
-            const mockMsg: DBChatMessage = { ...msg, id: Date.now().toString(), created_at: new Date().toISOString(), sender: { full_name: profile?.full_name || 'Me' }, sender_id: profile?.id || 'me', channel_id: msg.channel_id || null, message_text: msg.message_text }
+            const mockMsg: DBChatMessage = { ...msg, id: Date.now().toString(), created_at: new Date().toISOString(), sender: { full_name: profile?.full_name || 'Me' }, sender_id: profile?.id || 'me', channel_id: roomId, message_text: msg.message_text }
             setMessages(prev => [...prev, mockMsg])
             setNewMessage('')
             setSending(false)
