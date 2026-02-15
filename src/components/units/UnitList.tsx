@@ -27,10 +27,10 @@ export default function UnitList() {
         setLoading(true)
         // Mock Data for Preview
         const MOCK_UNITS: Unit[] = [
-            { id: '1', society_id: 'soc-1', unit_number: 'A-101', block_name: 'Block A', floor_number: 1, unit_type: 'flat', area_sqft: 1200, owner_id: 'user-1', created_at: new Date().toISOString() },
-            { id: '2', society_id: 'soc-1', unit_number: 'A-102', block_name: 'Block A', floor_number: 1, unit_type: 'flat', area_sqft: 1200, owner_id: '', created_at: new Date().toISOString() },
-            { id: '3', society_id: 'soc-1', unit_number: 'V-001', unit_type: 'villa', area_sqft: 3500, owner_id: 'user-2', created_at: new Date().toISOString() },
-            { id: '4', society_id: 'soc-1', unit_number: 'B-205', block_name: 'Block B', floor_number: 2, unit_type: 'flat', area_sqft: 1500, owner_id: 'user-3', created_at: new Date().toISOString() },
+            { id: '1', society_id: null, unit_number: 'A-101', block_name: 'Block A', floor_number: 1, unit_type: 'flat', area_sqft: 1200, owner_id: 'user-1', created_at: new Date().toISOString() },
+            { id: '2', society_id: null, unit_number: 'A-102', block_name: 'Block A', floor_number: 1, unit_type: 'flat', area_sqft: 1200, owner_id: '', created_at: new Date().toISOString() },
+            { id: '3', society_id: null, unit_number: 'V-001', unit_type: 'villa', area_sqft: 3500, owner_id: 'user-2', created_at: new Date().toISOString() },
+            { id: '4', society_id: null, unit_number: 'B-205', block_name: 'Block B', floor_number: 2, unit_type: 'flat', area_sqft: 1500, owner_id: 'user-3', created_at: new Date().toISOString() },
         ]
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
@@ -88,16 +88,21 @@ export default function UnitList() {
                     block_name: row.block_name,
                     floor_number: row.floor_number ? parseInt(row.floor_number) : null,
                     area_sqft: row.area_sqft ? parseFloat(row.area_sqft) : 0,
-                    society_id: 'soc-1',
+                    society_id: null,
                     created_at: new Date().toISOString()
                 })).filter(u => u.unit_number) // Filter empty rows
 
                 if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
                     setUnits([...units, ...newUnits as Unit[]])
                 } else {
-                    // Actual insert
-                    // await supabase.from('units').insert(newUnits)
-                    // fetchUnits()
+                    const unitsToInsert = newUnits.map(({ id, ...rest }) => rest)
+                    const { error } = await supabase.from('units').insert(unitsToInsert)
+                    if (error) {
+                        console.error('Bulk upload error:', error)
+                        alert('Failed to upload units: ' + error.message)
+                    } else {
+                        fetchUnits()
+                    }
                 }
             }
         })

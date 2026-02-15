@@ -135,6 +135,7 @@ export interface Facility {
     id: string
     name: string
     description: string
+    type?: 'hall' | 'tennis' | 'shuttle' | 'pickleball' | 'swimming' | 'room'
     image_url?: string
     hourly_rate: number // Default rate (or hourly fallback)
     pricing_type?: 'hourly' | 'per_slot' | 'day' // Updated Field

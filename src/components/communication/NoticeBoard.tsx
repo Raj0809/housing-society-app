@@ -128,9 +128,11 @@ export default function NoticeBoard() {
 
         setSubmitting(true)
         const newNotice: any = {
-            ...formData,
-            created_at: new Date().toISOString(),
-            created_by: profile?.id || 'Admin'
+            title: formData.title,
+            content: formData.content,
+            audience_type: formData.audience_type || 'All',
+            is_pinned: formData.is_pinned || false,
+            created_by: profile?.id
         }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {

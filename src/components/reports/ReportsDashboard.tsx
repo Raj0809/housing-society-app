@@ -1,78 +1,251 @@
 "use client"
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Download, FileText, PieChart as PieChartIcon, TrendingUp, Users, AlertCircle, Calendar as CalendarIcon, Filter, Car } from "lucide-react"
+import { Download, FileText, PieChart as PieChartIcon, TrendingUp, Users, AlertCircle, Calendar as CalendarIcon, Filter, Car, Loader2 } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
-import { format, subMonths } from 'date-fns'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import GSTReport from "./GSTReport"
 import TaxComplianceReport from "./TaxComplianceReport"
 
-const MOCK_FINANCIAL_DATA = [
-    { name: 'Sep 25', date: '2025-09-01', income: 45000, expense: 32000 },
-    { name: 'Oct 25', date: '2025-10-01', income: 52000, expense: 41000 },
-    { name: 'Nov 25', date: '2025-11-01', income: 48000, expense: 38000 },
-    { name: 'Dec 25', date: '2025-12-01', income: 51000, expense: 45000 },
-    { name: 'Jan 26', date: '2026-01-01', income: 53000, expense: 39000 },
-    { name: 'Feb 26', date: '2026-02-01', income: 55000, expense: 42000 },
-]
-
-const MOCK_FACILITIES_AVAILABILITY = [
-    { id: 1, name: 'Clubhouse', status: 'Available', next_booking: 'Tomorrow 10:00 AM' },
-    { id: 2, name: 'Swimming Pool', status: 'Maintenance', next_booking: '-' },
-    { id: 3, name: 'Tennis Court', status: 'Booked', next_booking: 'Today 5:00 PM' },
-    { id: 4, name: 'Community Hall', status: 'Available', next_booking: 'Sat 6:00 PM' },
-]
-
-const MOCK_VISITOR_STATS = [
-    { name: 'Mon', visitors: 45 },
-    { name: 'Tue', visitors: 52 },
-    { name: 'Wed', visitors: 38 },
-    { name: 'Thu', visitors: 65 },
-    { name: 'Fri', visitors: 55 },
-    { name: 'Sat', visitors: 89 },
-    { name: 'Sun', visitors: 76 },
-]
-
-const MOCK_COMPLAINT_DISTRIBUTION = [
-    { name: 'Plumbing', value: 30, fill: '#8884d8' },
-    { name: 'Electrical', value: 25, fill: '#82ca9d' },
-    { name: 'Security', value: 15, fill: '#ffc658' },
-    { name: 'Noise', value: 10, fill: '#ff8042' },
-    { name: 'Other', value: 20, fill: '#a4de6c' },
-]
-
-const MOCK_VEHICLE_LOGS = [
-    { id: 1, date: '2025-12-10', vehicle: 'KA-01-HH-1234', action: 'Added', user: 'Flat 101' },
-    { id: 2, date: '2026-01-12', vehicle: 'MH-02-AB-9999', action: 'Blocked', user: 'Flat 202' },
-    { id: 3, date: '2026-02-05', vehicle: 'TN-09-XX-5678', action: 'Added', user: 'Flat 305' },
-    { id: 4, date: '2026-02-12', vehicle: 'KA-51-ZZ-0000', action: 'Blocked', user: 'Flat 108' },
-]
-
-const MOCK_DEFAULTERS = [
-    { unit: '101', name: 'Rahul Sharma', amount: 5000, due_date: '2026-01-05' },
-    { unit: '205', name: 'Priya Patel', amount: 2500, due_date: '2026-02-01' },
-    { unit: '302', name: 'Amit Singh', amount: 12000, due_date: '2025-12-15' },
-]
-
-const MOCK_EXPENSES_LIST = [
-    { id: 1, date: '2026-02-01', category: 'Utilities', description: 'Electricity Bill', amount: 25000 },
-    { id: 2, date: '2026-02-05', category: 'Staff', description: 'Security Salary', amount: 45000 },
-    { id: 3, date: '2026-01-20', category: 'Repairs', description: 'Lift Maintenance', amount: 8500 },
-]
+const CHART_COLORS = ['hsl(var(--primary))', '#82ca9d', '#ffc658', '#ff8042', '#a4de6c', '#8dd1e1', '#d084d0']
 
 export default function ReportsDashboard() {
     const [generating, setGenerating] = useState<string | null>(null)
     const [viewingReport, setViewingReport] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
     const [dateRange, setDateRange] = useState({
         start: format(subMonths(new Date(), 5), 'yyyy-MM-dd'),
         end: format(new Date(), 'yyyy-MM-dd')
     })
     const [defaulterDate, setDefaulterDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+    // Real data states
+    const [financialData, setFinancialData] = useState<{ name: string; date: string; income: number; expense: number }[]>([])
+    const [facilities, setFacilities] = useState<any[]>([])
+    const [complaintDist, setComplaintDist] = useState<{ name: string; value: number; fill: string }[]>([])
+    const [visitorStats, setVisitorStats] = useState<{ name: string; visitors: number }[]>([])
+    const [vehicleLogs, setVehicleLogs] = useState<any[]>([])
+    const [defaulters, setDefaulters] = useState<any[]>([])
+    const [expenses, setExpenses] = useState<any[]>([])
+
+    useEffect(() => {
+        fetchAllData()
+    }, [dateRange])
+
+    const fetchAllData = async () => {
+        setLoading(true)
+        await Promise.all([
+            fetchFinancialData(),
+            fetchFacilities(),
+            fetchComplaintDistribution(),
+            fetchVisitorStats(),
+            fetchVehicleLogs(),
+            fetchDefaulters(),
+            fetchExpenses()
+        ])
+        setLoading(false)
+    }
+
+    const fetchFinancialData = async () => {
+        try {
+            // Fetch expenses grouped by month (the only finance table that exists)
+            const { data: expenseData } = await supabase
+                .from('expenses')
+                .select('amount, category, expense_date, created_at')
+                .gte('expense_date', dateRange.start)
+                .lte('expense_date', dateRange.end)
+
+            // Group by month
+            const monthMap: Record<string, { income: number; expense: number }> = {}
+
+            if (expenseData) {
+                expenseData.forEach((exp: any) => {
+                    const dateStr = exp.expense_date || exp.created_at
+                    if (!dateStr) return
+                    const monthKey = format(parseISO(dateStr), 'yyyy-MM-01')
+                    if (!monthMap[monthKey]) monthMap[monthKey] = { income: 0, expense: 0 }
+                    monthMap[monthKey].expense += Number(exp.amount) || 0
+                })
+
+                // Store raw expenses for the expense breakdown report
+                setExpenses(expenseData.map((exp: any) => ({
+                    id: exp.id || Math.random().toString(),
+                    date: exp.expense_date || format(parseISO(exp.created_at), 'yyyy-MM-dd'),
+                    category: exp.category || 'Uncategorized',
+                    description: exp.description || '-',
+                    amount: exp.amount
+                })))
+            }
+
+            const result = Object.entries(monthMap)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([date, vals]) => ({
+                    name: format(parseISO(date), 'MMM yy'),
+                    date,
+                    income: vals.income,
+                    expense: vals.expense
+                }))
+
+            setFinancialData(result.length > 0 ? result : [
+                { name: format(new Date(), 'MMM yy'), date: format(new Date(), 'yyyy-MM-01'), income: 0, expense: 0 }
+            ])
+        } catch (e) {
+            console.error('Error fetching financial data:', e)
+        }
+    }
+
+    const fetchFacilities = async () => {
+        try {
+            const { data } = await supabase.from('facilities').select('*').eq('is_active', true)
+            if (data) {
+                setFacilities(data.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    status: f.is_active ? 'Available' : 'Maintenance',
+                    type: f.type
+                })))
+            }
+        } catch (e) {
+            console.error('Error fetching facilities:', e)
+        }
+    }
+
+    const fetchComplaintDistribution = async () => {
+        try {
+            const { data } = await supabase
+                .from('complaints')
+                .select('category')
+                .gte('created_at', dateRange.start)
+                .lte('created_at', dateRange.end + 'T23:59:59')
+
+            if (data && data.length > 0) {
+                const catMap: Record<string, number> = {}
+                data.forEach((c: any) => {
+                    const cat = c.category || 'Other'
+                    catMap[cat] = (catMap[cat] || 0) + 1
+                })
+                const result = Object.entries(catMap).map(([name, value], i) => ({
+                    name,
+                    value,
+                    fill: CHART_COLORS[i % CHART_COLORS.length]
+                }))
+                setComplaintDist(result)
+            } else {
+                setComplaintDist([{ name: 'No Data', value: 1, fill: '#ccc' }])
+            }
+        } catch (e) {
+            console.error('Error fetching complaints:', e)
+        }
+    }
+
+    const fetchVisitorStats = async () => {
+        try {
+            // visitor_logs table may not exist yet - try to query, fallback to empty
+            const { data, error } = await supabase
+                .from('visitor_logs')
+                .select('check_in_time')
+                .gte('check_in_time', dateRange.start)
+                .lte('check_in_time', dateRange.end + 'T23:59:59')
+
+            if (!error && data && data.length > 0) {
+                const dayMap: Record<string, number> = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 }
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                data.forEach((v: any) => {
+                    const day = dayNames[new Date(v.check_in_time).getDay()]
+                    dayMap[day] = (dayMap[day] || 0) + 1
+                })
+                setVisitorStats(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => ({
+                    name,
+                    visitors: dayMap[name] || 0
+                })))
+            } else {
+                setVisitorStats(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => ({ name, visitors: 0 })))
+            }
+        } catch (e) {
+            console.error('Error fetching visitors:', e)
+            setVisitorStats(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => ({ name, visitors: 0 })))
+        }
+    }
+
+    const fetchVehicleLogs = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('vehicles')
+                .select('id, registration_number, vehicle_type, is_active, make_model, parking_slot, created_at')
+                .order('created_at', { ascending: false })
+
+            if (!error && data) {
+                setVehicleLogs(data.map((v: any, i: number) => ({
+                    id: i + 1,
+                    date: format(parseISO(v.created_at), 'yyyy-MM-dd'),
+                    vehicle: v.registration_number || 'N/A',
+                    action: v.is_active === false ? 'Blocked' : 'Active',
+                    user: v.make_model || v.vehicle_type || '-'
+                })))
+            }
+        } catch (e) {
+            console.error('Error fetching vehicles:', e)
+        }
+    }
+
+    const fetchDefaulters = async () => {
+        try {
+            // maintenance_invoices table may not exist yet - gracefully handle
+            const { data, error } = await supabase
+                .from('maintenance_invoices')
+                .select('*, unit:units(unit_number)')
+                .eq('status', 'pending')
+                .lte('due_date', defaulterDate)
+                .order('due_date', { ascending: true })
+
+            if (!error && data) {
+                setDefaulters(data.map((inv: any) => ({
+                    unit: inv.unit?.unit_number || 'N/A',
+                    name: 'Resident',
+                    amount: inv.amount,
+                    due_date: inv.due_date
+                })))
+            } else {
+                setDefaulters([])
+            }
+        } catch (e) {
+            console.error('Error fetching defaulters:', e)
+            setDefaulters([])
+        }
+    }
+
+    // fetchExpenses is now handled inside fetchFinancialData
+    const fetchExpenses = async () => {
+        // Expenses are already fetched from the 'expenses' table in fetchFinancialData
+        // This function exists as a no-op to maintain the call in useEffect
+        if (expenses.length > 0) return
+        try {
+            const { data, error } = await supabase
+                .from('expenses')
+                .select('*')
+                .gte('expense_date', dateRange.start)
+                .lte('expense_date', dateRange.end)
+                .order('expense_date', { ascending: false })
+
+            if (!error && data) {
+                setExpenses(data.map((exp: any, i: number) => ({
+                    id: i + 1,
+                    date: exp.expense_date,
+                    category: exp.category || 'General',
+                    description: exp.description || '-',
+                    amount: exp.amount
+                })))
+            }
+        } catch (e) {
+            console.error('Error fetching expenses:', e)
+        }
+    }
 
     const handleDownload = (reportType: string) => {
         setGenerating(reportType)
@@ -82,30 +255,18 @@ export default function ReportsDashboard() {
         }, 1500)
     }
 
-    const filteredFinancialData = useMemo(() => {
-        return MOCK_FINANCIAL_DATA.filter(item =>
-            item.date >= dateRange.start && item.date <= dateRange.end
-        )
-    }, [dateRange])
-
-    const filteredExpenses = useMemo(() => {
-        return MOCK_EXPENSES_LIST.filter(item =>
-            item.date >= dateRange.start && item.date <= dateRange.end
-        )
-    }, [dateRange])
-
     const filteredVehicleLogs = useMemo(() => {
-        return MOCK_VEHICLE_LOGS.filter(item =>
+        return vehicleLogs.filter(item =>
             item.date >= dateRange.start && item.date <= dateRange.end
         )
-    }, [dateRange])
+    }, [vehicleLogs, dateRange])
 
     return (
         <div className="space-y-6 animate-in fade-in">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
-                    <p className="text-muted-foreground">Graphical insights and detailed exports.</p>
+                    <p className="text-muted-foreground">Insights from real society data.</p>
                 </div>
                 <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-lg border">
                     <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -126,6 +287,13 @@ export default function ReportsDashboard() {
                 </div>
             </div>
 
+            {loading && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading reports...
+                </div>
+            )}
+
             <Tabs defaultValue="financial" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
@@ -136,31 +304,28 @@ export default function ReportsDashboard() {
                 </TabsList>
 
                 <TabsContent value="financial" className="space-y-4">
-                    {/* Charts Section */}
                     <div className="grid gap-4 md:grid-cols-1">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Income vs Expense Trends</CardTitle>
-                                <CardDescription>Monthly financial performance visualization.</CardDescription>
+                                <CardDescription>Monthly financial performance from real data.</CardDescription>
                             </CardHeader>
                             <CardContent className="h-[300px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={filteredFinancialData}
-                                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
-                                        <RechartsTooltip
-                                            contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                                            itemStyle={{ color: 'hsl(var(--foreground))' }}
-                                        />
-                                        <Legend />
-                                        <Bar dataKey="income" name="Income" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="expense" name="Expense" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                {financialData.length === 0 ? (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground">No financial data for this period.</div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={financialData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
+                                            <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
+                                            <Legend />
+                                            <Bar dataKey="income" name="Income" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="expense" name="Expense" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -173,7 +338,7 @@ export default function ReportsDashboard() {
                             </CardHeader>
                             <CardContent className="pt-4">
                                 <div className="text-2xl font-bold">Monthly Summary</div>
-                                <p className="text-xs text-muted-foreground mb-4">Detailed breakdown of revenue sources.</p>
+                                <p className="text-xs text-muted-foreground mb-4">Revenue vs expenditure breakdown.</p>
                                 <div className="flex gap-2">
                                     <Button className="flex-1" variant="outline" onClick={() => setViewingReport('financial_summary')}>
                                         <FileText className="mr-2 h-4 w-4" /> View
@@ -193,14 +358,14 @@ export default function ReportsDashboard() {
                             </CardHeader>
                             <CardContent className="pt-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <div className="text-2xl font-bold">Overdue</div>
+                                    <div className="text-2xl font-bold">{defaulters.length} Overdue</div>
                                 </div>
                                 <div className="flex items-center gap-2 mb-4">
                                     <span className="text-xs text-muted-foreground">As on:</span>
                                     <input
                                         type="date"
                                         value={defaulterDate}
-                                        onChange={(e) => setDefaulterDate(e.target.value)}
+                                        onChange={(e) => { setDefaulterDate(e.target.value); fetchDefaulters() }}
                                         className="h-6 w-28 text-xs border rounded px-1 bg-background"
                                     />
                                 </div>
@@ -208,7 +373,7 @@ export default function ReportsDashboard() {
                                     <Button className="flex-1" variant="outline" onClick={() => setViewingReport('defaulters_list')}>
                                         <FileText className="mr-2 h-4 w-4" /> View
                                     </Button>
-                                    <Button className="flex-1" variant="destructive" onClick={() => handleDownload(`Defaulters_enc_ason_${defaulterDate}`)} disabled={generating?.includes('Defaulters')}>
+                                    <Button className="flex-1" variant="destructive" onClick={() => handleDownload(`Defaulters_${defaulterDate}`)} disabled={generating?.includes('Defaulters')}>
                                         <Download className="mr-2 h-4 w-4" />
                                         {generating?.includes('Defaulters') ? '...' : 'PDF'}
                                     </Button>
@@ -219,11 +384,11 @@ export default function ReportsDashboard() {
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Expense Report</CardTitle>
-                                <PieChart className="h-4 w-4 text-muted-foreground" />
+                                <PieChartIcon className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent className="pt-4">
-                                <div className="text-2xl font-bold">Category Wise</div>
-                                <p className="text-xs text-muted-foreground mb-4">Utilities, Repairs, Staff Salary.</p>
+                                <div className="text-2xl font-bold">{expenses.length} Entries</div>
+                                <p className="text-xs text-muted-foreground mb-4">Category-wise expenses in this period.</p>
                                 <div className="flex gap-2">
                                     <Button className="flex-1" variant="outline" onClick={() => setViewingReport('expense_breakdown')}>
                                         <FileText className="mr-2 h-4 w-4" /> View
@@ -240,23 +405,22 @@ export default function ReportsDashboard() {
 
                 <TabsContent value="operational" className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                        {/* Facilities Available Report */}
                         <Card className="col-span-2 md:col-span-1 lg:col-span-4">
                             <CardHeader className="pb-3">
                                 <CardTitle>Facilities Status</CardTitle>
-                                <CardDescription>Real-time booking and availability snapshot.</CardDescription>
+                                <CardDescription>Active facilities in the society.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {MOCK_FACILITIES_AVAILABILITY.map(fac => (
+                                    {facilities.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground text-center py-4">No facilities configured yet.</p>
+                                    ) : facilities.map(fac => (
                                         <div key={fac.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
                                             <div className="space-y-0.5">
                                                 <p className="text-sm font-medium">{fac.name}</p>
-                                                <p className="text-xs text-muted-foreground">Next: {fac.next_booking}</p>
+                                                <p className="text-xs text-muted-foreground capitalize">{fac.type}</p>
                                             </div>
-                                            <div className={`px-2 py-0.5 rounded text-xs font-medium 
-                                                ${fac.status === 'Available' ? 'bg-green-100 text-green-700' :
-                                                    fac.status === 'Booked' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                            <div className={`px-2 py-0.5 rounded text-xs font-medium ${fac.status === 'Available' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                 {fac.status}
                                             </div>
                                         </div>
@@ -282,16 +446,8 @@ export default function ReportsDashboard() {
                                 <div className="h-[200px] w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
-                                            <Pie
-                                                data={MOCK_COMPLAINT_DISTRIBUTION}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                {MOCK_COMPLAINT_DISTRIBUTION.map((entry, index) => (
+                                            <Pie data={complaintDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                                {complaintDist.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={entry.fill} />
                                                 ))}
                                             </Pie>
@@ -318,11 +474,11 @@ export default function ReportsDashboard() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Visitor Footfall</CardTitle>
-                                <CardDescription>Weekly visitor entry trends</CardDescription>
+                                <CardDescription>Visitor entry trends by day of week</CardDescription>
                             </CardHeader>
                             <CardContent className="h-[300px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={MOCK_VISITOR_STATS}>
+                                    <LineChart data={visitorStats}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                                         <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
@@ -344,7 +500,7 @@ export default function ReportsDashboard() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Vehicle Activity</CardTitle>
-                                <CardDescription>Blocked/Added Log ({dateRange.start} - {dateRange.end})</CardDescription>
+                                <CardDescription>Vehicle log ({dateRange.start} - {dateRange.end})</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
@@ -354,14 +510,16 @@ export default function ReportsDashboard() {
                                                 <TableRow>
                                                     <TableHead className="w-[100px]">Date</TableHead>
                                                     <TableHead>Vehicle</TableHead>
-                                                    <TableHead>Action</TableHead>
+                                                    <TableHead>Status</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {filteredVehicleLogs.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center h-24">No logs found in this period.</TableCell></TableRow> : filteredVehicleLogs.map((log) => (
+                                                {filteredVehicleLogs.length === 0 ? (
+                                                    <TableRow><TableCell colSpan={3} className="text-center h-24">No vehicle logs found in this period.</TableCell></TableRow>
+                                                ) : filteredVehicleLogs.slice(0, 10).map((log) => (
                                                     <TableRow key={log.id}>
                                                         <TableCell className="font-medium">{log.date}</TableCell>
-                                                        <TableCell>{log.vehicle}</TableCell>
+                                                        <TableCell className="font-mono">{log.vehicle}</TableCell>
                                                         <TableCell>
                                                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.action === 'Blocked' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                                 {log.action}
@@ -394,6 +552,7 @@ export default function ReportsDashboard() {
                     <TaxComplianceReport />
                 </TabsContent>
 
+                {/* Detail Report Dialog */}
                 <Dialog open={!!viewingReport} onOpenChange={(open) => !open && setViewingReport(null)}>
                     <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
@@ -411,12 +570,14 @@ export default function ReportsDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredFinancialData.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center">No data in this period.</TableCell></TableRow> : filteredFinancialData.map((row) => (
+                                    {financialData.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="text-center">No data in this period.</TableCell></TableRow>
+                                    ) : financialData.map((row) => (
                                         <TableRow key={row.name}>
                                             <TableCell>{row.name}</TableCell>
-                                            <TableCell className="text-green-600">₹{row.income}</TableCell>
-                                            <TableCell className="text-red-600">₹{row.expense}</TableCell>
-                                            <TableCell className="font-bold">₹{row.income - row.expense}</TableCell>
+                                            <TableCell className="text-green-600">&#8377;{row.income.toLocaleString()}</TableCell>
+                                            <TableCell className="text-red-600">&#8377;{row.expense.toLocaleString()}</TableCell>
+                                            <TableCell className="font-bold">&#8377;{(row.income - row.expense).toLocaleString()}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -434,12 +595,14 @@ export default function ReportsDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {MOCK_DEFAULTERS.map((row, i) => (
+                                    {defaulters.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="text-center">No defaulters found.</TableCell></TableRow>
+                                    ) : defaulters.map((row, i) => (
                                         <TableRow key={i}>
                                             <TableCell>{row.unit}</TableCell>
                                             <TableCell>{row.name}</TableCell>
                                             <TableCell>{row.due_date}</TableCell>
-                                            <TableCell className="text-red-600 font-bold">₹{row.amount}</TableCell>
+                                            <TableCell className="text-red-600 font-bold">&#8377;{Number(row.amount).toLocaleString()}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -457,12 +620,14 @@ export default function ReportsDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredExpenses.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center">No expenses in this period.</TableCell></TableRow> : filteredExpenses.map((row, i) => (
-                                        <TableRow key={i}>
+                                    {expenses.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="text-center">No expenses in this period.</TableCell></TableRow>
+                                    ) : expenses.map((row) => (
+                                        <TableRow key={row.id}>
                                             <TableCell>{row.date}</TableCell>
                                             <TableCell>{row.category}</TableCell>
                                             <TableCell>{row.description}</TableCell>
-                                            <TableCell className="font-bold">₹{row.amount}</TableCell>
+                                            <TableCell className="font-bold">&#8377;{Number(row.amount).toLocaleString()}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -474,22 +639,22 @@ export default function ReportsDashboard() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Facility</TableHead>
+                                        <TableHead>Type</TableHead>
                                         <TableHead>Status</TableHead>
-                                        <TableHead>Next Booking</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {MOCK_FACILITIES_AVAILABILITY.map((fac) => (
+                                    {facilities.length === 0 ? (
+                                        <TableRow><TableCell colSpan={3} className="text-center">No facilities.</TableCell></TableRow>
+                                    ) : facilities.map((fac) => (
                                         <TableRow key={fac.id}>
                                             <TableCell>{fac.name}</TableCell>
+                                            <TableCell className="capitalize">{fac.type}</TableCell>
                                             <TableCell>
-                                                <span className={`px-2 py-1 rounded text-xs font-medium 
-                                                    ${fac.status === 'Available' ? 'bg-green-100 text-green-700' :
-                                                        fac.status === 'Booked' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${fac.status === 'Available' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                     {fac.status}
                                                 </span>
                                             </TableCell>
-                                            <TableCell>{fac.next_booking}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -506,13 +671,16 @@ export default function ReportsDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {MOCK_COMPLAINT_DISTRIBUTION.map((row) => (
-                                        <TableRow key={row.name}>
-                                            <TableCell>{row.name}</TableCell>
-                                            <TableCell>{row.value}</TableCell>
-                                            <TableCell>{row.value}%</TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {complaintDist.map((row) => {
+                                        const total = complaintDist.reduce((sum, r) => sum + r.value, 0)
+                                        return (
+                                            <TableRow key={row.name}>
+                                                <TableCell>{row.name}</TableCell>
+                                                <TableCell>{row.value}</TableCell>
+                                                <TableCell>{total > 0 ? ((row.value / total) * 100).toFixed(1) : 0}%</TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
                                 </TableBody>
                             </Table>
                         )}
@@ -526,7 +694,7 @@ export default function ReportsDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {MOCK_VISITOR_STATS.map((row) => (
+                                    {visitorStats.map((row) => (
                                         <TableRow key={row.name}>
                                             <TableCell>{row.name}</TableCell>
                                             <TableCell>{row.visitors}</TableCell>
@@ -544,12 +712,14 @@ export default function ReportsDashboard() {
                                         <TableRow>
                                             <TableHead>Date</TableHead>
                                             <TableHead>Vehicle Number</TableHead>
-                                            <TableHead>Action</TableHead>
-                                            <TableHead>User / Unit</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Owner</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredVehicleLogs.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center">No logs found.</TableCell></TableRow> : filteredVehicleLogs.map((log) => (
+                                        {filteredVehicleLogs.length === 0 ? (
+                                            <TableRow><TableCell colSpan={4} className="text-center">No logs found.</TableCell></TableRow>
+                                        ) : filteredVehicleLogs.map((log) => (
                                             <TableRow key={log.id}>
                                                 <TableCell>{log.date}</TableCell>
                                                 <TableCell className="font-mono">{log.vehicle}</TableCell>
@@ -561,8 +731,6 @@ export default function ReportsDashboard() {
                                                 <TableCell>{log.user}</TableCell>
                                             </TableRow>
                                         ))}
-                                        {/* Add more rows to simulate full report */}
-
                                     </TableBody>
                                 </Table>
                             </div>
