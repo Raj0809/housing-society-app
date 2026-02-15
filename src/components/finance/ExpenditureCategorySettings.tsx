@@ -64,9 +64,11 @@ export default function ExpenditureMetadataSettings() {
         setSaving(true)
 
         const newCategory = {
-            ...formData,
+            name: formData.name,
+            classification: formData.classification || 'Revenue',
+            type: formData.type,
+            nature: formData.nature,
             is_active: true,
-            created_at: new Date().toISOString()
         }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {

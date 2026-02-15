@@ -21,7 +21,7 @@ export default function MaintenanceSettingsPage() {
     const [saving, setSaving] = useState(false)
     const [generating, setGenerating] = useState(false)
     const [settings, setSettings] = useState<MaintenanceSettings>({
-        society_id: 'soc-1',
+        society_id: null,
         calculation_method: 'fixed_per_unit',
         default_amount: 1500,
         due_day_of_month: 5,

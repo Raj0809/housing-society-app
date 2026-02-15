@@ -112,7 +112,7 @@ export default function ChatWindow({ roomId, title }: ChatWindowProps) {
             {/* Header */}
             <div className="p-4 border-b bg-muted/30">
                 <h3 className="font-semibold flex items-center gap-2">
-                    {roomId === 'lobby' ? <UsersIcon className="h-4 w-4" /> : <UserIcon className="h-4 w-4" />}
+                    <UserIcon className="h-4 w-4" />
                     {title}
                 </h3>
             </div>

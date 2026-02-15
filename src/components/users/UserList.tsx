@@ -213,12 +213,16 @@ export default function UserList({ onEdit }: UserListProps) {
 
             if (error) throw error
 
+            // Also update local state immediately for responsive UI
+            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: isActive } : u))
+
             if (!isActive) {
                 const { error: vehicleError } = await supabase.from('vehicles').update({ sticker_status: 'blocked' }).eq('user_id', user.id)
                 if (vehicleError) console.error('Error blocking vehicles:', vehicleError)
             }
 
-            fetchUsers(search)
+            // Also re-fetch to ensure consistency with DB
+            await fetchUsers(search)
         } catch (error) {
             console.error('Error updating user status:', error)
             alert('Failed to update user status')

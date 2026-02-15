@@ -49,7 +49,7 @@ export default function UnitForm({ onSuccess, onCancel, initialData }: UnitFormP
                 block_name: formData.blockName,
                 floor_number: formData.floorNumber ? parseInt(String(formData.floorNumber)) : null,
                 area_sqft: parseFloat(String(formData.areaSqft)),
-                society_id: 'soc-1' // Mock ID
+                society_id: null
             }
 
             if (initialData?.id) {

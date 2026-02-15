@@ -17,7 +17,7 @@ export default function ComplaintList() {
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [submitting, setSubmitting] = useState(false)
-    const [filter, setFilter] = useState<'all' | 'my'>('all')
+    const [filter, setFilter] = useState<'all' | 'my'>('my')
 
     // Detail View State
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
@@ -248,15 +248,20 @@ export default function ComplaintList() {
             return
         }
 
-        await supabase.from('complaints').update(updates).eq('id', selectedComplaint.id)
-        fetchComplaints()
+        const { error } = await supabase.from('complaints').update(updates).eq('id', selectedComplaint.id)
+        if (error) {
+            console.error('Error updating status:', error)
+            alert('Failed to update status: ' + error.message)
+            return
+        }
         setSelectedComplaint(prev => prev ? ({ ...prev, ...updates }) : null)
+        fetchComplaints()
     }
 
     const handleAssign = async () => {
         if (!selectedComplaint || !assignee) return
 
-        const updates = { assigned_to: assignee }
+        const updates = { assigned_to: assignee, status: selectedComplaint.status === 'open' ? 'in_progress' : selectedComplaint.status }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
             const updated = { ...selectedComplaint, ...updates }
@@ -270,10 +275,14 @@ export default function ComplaintList() {
             return
         }
 
-        await supabase.from('complaints').update(updates).eq('id', selectedComplaint.id)
-        fetchComplaints()
+        const { error } = await supabase.from('complaints').update(updates).eq('id', selectedComplaint.id)
+        if (error) {
+            console.error('Error assigning staff:', error)
+            alert('Failed to assign staff: ' + error.message)
+            return
+        }
         setSelectedComplaint(prev => prev ? ({ ...prev, ...updates }) : null)
-        alert('Staff assigned successfully')
+        fetchComplaints()
     }
 
     const getStatusColor = (status: string) => {
@@ -301,12 +310,14 @@ export default function ComplaintList() {
             <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex bg-muted p-1 rounded-lg">
-                        <button
-                            className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", filter === 'all' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-                            onClick={() => setFilter('all')}
-                        >
-                            All Complaints
-                        </button>
+                        {isAdmin && (
+                            <button
+                                className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", filter === 'all' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                                onClick={() => setFilter('all')}
+                            >
+                                All Complaints
+                            </button>
+                        )}
                         <button
                             className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", filter === 'my' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                             onClick={() => setFilter('my')}
@@ -556,7 +567,7 @@ export default function ComplaintList() {
                                 <div className="flex gap-2 flex-wrap">
                                     <Button variant="outline" size="sm" onClick={() => handleStatusUpdate('open')} disabled={selectedComplaint.status === 'open'}>Open</Button>
                                     <Button variant="outline" size="sm" onClick={() => handleStatusUpdate('in_progress')} disabled={selectedComplaint.status === 'in_progress'}>In Progress</Button>
-                                    <Button variant="outline" size="sm" className="text-green-600 hover:text-green-700 border-green-200 bg-green-50" onClick={() => handleStatusUpdate('resolved', 'Marked resolved by admin')} disabled={selectedComplaint.status === 'resolved'}>Resolve</Button>
+                                    <Button variant="outline" size="sm" className="text-green-600 hover:text-green-700 border-green-200 bg-green-50" onClick={() => handleStatusUpdate('resolved', `Marked resolved by ${profile?.full_name || profile?.role || 'management'}`)} disabled={selectedComplaint.status === 'resolved'}>Resolve</Button>
                                 </div>
                             </div>
 
