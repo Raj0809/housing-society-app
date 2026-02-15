@@ -111,6 +111,12 @@ export default function LoginPage() {
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign In
                         </Button>
+                        <p className="text-center text-sm text-muted-foreground">
+                            Don't have an account?{" "}
+                            <Link href="/register" className="font-semibold text-primary underline-offset-4 hover:underline">
+                                Sign up
+                            </Link>
+                        </p>
                     </CardFooter>
                 </form>
             </Card>
