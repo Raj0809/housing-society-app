@@ -1038,18 +1038,7 @@ export default function FacilityList() {
                             <Plus className="mr-2 h-4 w-4" /> Add Facility
                         </Button>
                     )}
-                    <Button variant="outline" onClick={() => {
-                        if (confirm('This will reset all facility and booking data to defaults. Are you sure?')) {
-                            localStorage.removeItem('mock_facilities')
-                            localStorage.removeItem('mock_bookings')
-                            localStorage.removeItem('mock_maintenance_fees')
-                            localStorage.removeItem('mock_modifications')
-                            localStorage.removeItem('mock_cancellations')
-                            window.location.reload()
-                        }
-                    }}>
-                        Reset Data
-                    </Button>
+
                 </div>
             </div>
 

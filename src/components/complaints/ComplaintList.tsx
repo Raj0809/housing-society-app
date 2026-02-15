@@ -82,7 +82,7 @@ export default function ComplaintList() {
         try {
             let query = supabase
                 .from('complaints')
-                .select('*, user:users(full_name, unit_number)')
+                .select('*, user:profiles!complaints_raised_by_fkey(full_name)')
                 .order('created_at', { ascending: false })
 
             if (filter === 'my' && profile) {
@@ -123,19 +123,13 @@ export default function ComplaintList() {
         if (!formData.subject || !formData.description) return
         setSubmitting(true)
 
-        // Simulate File Upload
-        let attachmentUrl = undefined
-        if (mockFile) {
-            // In a real app, upload to storage here
-            attachmentUrl = `https://placehold.co/600x400?text=${encodeURIComponent(mockFile.name)}`
-        }
-
-        const newComplaint = {
-            ...formData,
-            attachment_url: attachmentUrl,
+        const newComplaint: any = {
+            subject: formData.subject,
+            description: formData.description,
+            category: formData.category,
+            priority: formData.priority,
             raised_by: profile?.id,
             status: 'open',
-            created_at: new Date().toISOString()
         }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
@@ -154,13 +148,22 @@ export default function ComplaintList() {
         }
 
         try {
-            const { error } = await supabase.from('complaints').insert(newComplaint)
+            const { data: inserted, error } = await supabase.from('complaints').insert(newComplaint).select().single()
             if (error) throw error
+
+            // Upload attachment to Supabase Storage if a file was selected
+            if (mockFile && inserted) {
+                const fileExt = mockFile.name.split('.').pop()
+                const filePath = `complaints/${inserted.id}/${Date.now()}.${fileExt}`
+                await supabase.storage.from('society_documents').upload(filePath, mockFile)
+            }
+
             fetchComplaints()
             setShowForm(false)
             setFormData({ priority: 'medium', category: 'Maintenance' })
             setMockFile(null)
         } catch (error) {
+            console.error('Failed to submit complaint:', error)
             alert('Failed to submit complaint')
         } finally {
             setSubmitting(false)
@@ -303,7 +306,6 @@ export default function ComplaintList() {
                                         <span className="text-xs text-muted-foreground ml-2">
                                             #{complaint.id.slice(0, 6)} • {format(new Date(complaint.created_at), 'MMM d')}
                                         </span>
-                                        {complaint.attachment_url && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                                     </div>
                                     <CardTitle className="text-base">{complaint.subject}</CardTitle>
                                 </div>
@@ -315,7 +317,7 @@ export default function ComplaintList() {
                                 <p className="text-sm text-foreground/80 line-clamp-2">{complaint.description}</p>
                                 <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                                     <span>Category: {complaint.category}</span>
-                                    <span>From: {complaint.user?.full_name} ({complaint.user?.unit_number})</span>
+                                    <span>From: {complaint.user?.full_name}</span>
                                 </div>
                             </CardContent>
                         </Card>

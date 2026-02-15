@@ -28,10 +28,11 @@ export default function VisitorLog() {
     })
 
     const isSecurity = profile?.role === 'security' || profile?.role === 'app_admin' || profile?.role === 'management'
+    const isResident = !isSecurity
 
     useEffect(() => {
         fetchData()
-    }, [])
+    }, [profile])
 
     const fetchData = async () => {
         setLoading(true)
@@ -57,8 +58,34 @@ export default function VisitorLog() {
         }
 
         try {
+            // For residents, first find their unit(s) so we only show their visitors
+            let userUnitIds: string[] = []
+            if (isResident && profile?.id) {
+                const { data: userUnits } = await supabase
+                    .from('units')
+                    .select('id')
+                    .eq('owner_id', profile.id)
+                userUnitIds = (userUnits || []).map(u => u.id)
+            }
+
+            let visitorsQuery = supabase
+                .from('visitors')
+                .select('*, unit:units(unit_number)')
+                .order('created_at', { ascending: false })
+
+            // Residents only see visitors to their unit(s)
+            if (isResident && userUnitIds.length > 0) {
+                visitorsQuery = visitorsQuery.in('visiting_unit_id', userUnitIds)
+            } else if (isResident && userUnitIds.length === 0) {
+                // No unit assigned, show nothing
+                setVisitors([])
+                setUnits([])
+                setLoading(false)
+                return
+            }
+
             const [visitorsRes, unitsRes] = await Promise.all([
-                supabase.from('visitors').select('*, unit:units(unit_number)').order('created_at', { ascending: false }),
+                visitorsQuery,
                 supabase.from('units').select('*')
             ])
 

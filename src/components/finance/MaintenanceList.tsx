@@ -11,23 +11,26 @@ import { format } from 'date-fns'
 import MaintenanceForm from './MaintenanceForm'
 import { InvoiceTemplate } from './InvoiceTemplate'
 import { FileText, Printer } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
-// Extended interface to include joined unit data
 // Extended interface to include joined unit data
 interface MaintenanceFeeWithUnit extends MaintenanceFee {
     units?: {
         unit_number: string
         unit_type: string
         block_name?: string
-    }
-    profiles?: {
-        full_name: string
-        email: string
-        phone: string
+        owner_id?: string
+        owner?: {
+            full_name: string
+            email: string
+            phone: string
+        }
     }
 }
 
 export default function MaintenanceList() {
+    const { profile } = useAuth()
+    const isAdmin = profile?.role === 'app_admin' || profile?.role === 'management' || profile?.role === 'administration'
     const [fees, setFees] = useState<MaintenanceFeeWithUnit[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -82,16 +85,32 @@ export default function MaintenanceList() {
         }
 
         try {
-            const { data, error } = await supabase
+            // First, if non-admin, find the user's unit(s)
+            let unitIds: string[] = []
+            if (!isAdmin && profile?.id) {
+                const { data: userUnits } = await supabase
+                    .from('units')
+                    .select('id')
+                    .eq('owner_id', profile.id)
+                unitIds = (userUnits || []).map(u => u.id)
+            }
+
+            let query = supabase
                 .from('maintenance_fees')
-                .select('*, units(unit_number, unit_type, block_name, owner_id), profiles:units(owner_id(full_name, email, phone))') // standardized join? profiles join might be tricky if not direct.
-                // Actually owner_id is on units, so we need consistent join.
-                // Let's rely on fetching user details via unit owner or just basic unit info for now.
-                // Attempting deep join: units -> owner_id -> profiles
-                // Supabase syntax for deep join: units(..., owner:owner_id(full_name...))
-                .select('*, units(unit_number, unit_type, block_name, owner:owner_id(full_name, email, phone))')
+                .select('*, units(unit_number, unit_type, block_name, owner_id, owner:owner_id(full_name, email, phone))')
                 .order('due_date', { ascending: false })
 
+            // Non-admin users only see their own unit's fees
+            if (!isAdmin && unitIds.length > 0) {
+                query = query.in('unit_id', unitIds)
+            } else if (!isAdmin && unitIds.length === 0) {
+                // User has no units assigned, show nothing
+                setFees([])
+                setLoading(false)
+                return
+            }
+
+            const { data, error } = await query
             if (error) throw error
             if (data) setFees(data as unknown as MaintenanceFeeWithUnit[])
         } catch (error) {
@@ -323,7 +342,7 @@ export default function MaintenanceList() {
             {/* Header / Actions */}
             <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 pb-4 px-0">
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                    {selectedIds.length > 0 ? (
+                    {isAdmin && selectedIds.length > 0 ? (
                         <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-md">
                             <span className="text-sm font-medium px-2">{selectedIds.length} selected</span>
                             <Button
@@ -389,12 +408,16 @@ export default function MaintenanceList() {
                     )}
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
-                    <Button variant="outline" className="flex-1 sm:flex-none" onClick={handleExportCSV}>
-                        <Download className="mr-2 h-4 w-4" /> Export CSV
-                    </Button>
-                    <Button onClick={() => setShowForm(true)} className="flex-1 sm:flex-none">
-                        <Plus className="mr-2 h-4 w-4" /> New Invoice
-                    </Button>
+                    {isAdmin && (
+                        <Button variant="outline" className="flex-1 sm:flex-none" onClick={handleExportCSV}>
+                            <Download className="mr-2 h-4 w-4" /> Export CSV
+                        </Button>
+                    )}
+                    {isAdmin && (
+                        <Button onClick={() => setShowForm(true)} className="flex-1 sm:flex-none">
+                            <Plus className="mr-2 h-4 w-4" /> New Invoice
+                        </Button>
+                    )}
                 </div>
             </CardHeader>
 
@@ -490,14 +513,16 @@ export default function MaintenanceList() {
                         <table className="w-full caption-bottom text-sm">
                             <thead className="[&_tr]:border-b">
                                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                    <th className="h-12 px-4 text-left align-middle w-[40px]">
-                                        <input
-                                            type="checkbox"
-                                            className="h-4 w-4 rounded border-gray-300"
-                                            checked={filteredFees.length > 0 && selectedIds.length === filteredFees.length}
-                                            onChange={toggleSelectAll}
-                                        />
-                                    </th>
+                                    {isAdmin && (
+                                        <th className="h-12 px-4 text-left align-middle w-[40px]">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-gray-300"
+                                                checked={filteredFees.length > 0 && selectedIds.length === filteredFees.length}
+                                                onChange={toggleSelectAll}
+                                            />
+                                        </th>
+                                    )}
                                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[150px]">Unit</th>
                                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Description</th>
                                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Amount</th>
@@ -528,14 +553,16 @@ export default function MaintenanceList() {
                                 ) : (
                                     filteredFees.map((fee) => (
                                         <tr key={fee.id} className={`border-b transition-colors hover:bg-muted/50 group ${selectedIds.includes(fee.id) ? 'bg-muted/50' : ''}`}>
-                                            <td className="p-4 align-middle">
-                                                <input
-                                                    type="checkbox"
-                                                    className="h-4 w-4 rounded border-gray-300"
-                                                    checked={selectedIds.includes(fee.id)}
-                                                    onChange={() => toggleSelect(fee.id)}
-                                                />
-                                            </td>
+                                            {isAdmin && (
+                                                <td className="p-4 align-middle">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4 rounded border-gray-300"
+                                                        checked={selectedIds.includes(fee.id)}
+                                                        onChange={() => toggleSelect(fee.id)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="p-4 align-middle font-medium">
                                                 {fee.units?.unit_number || fee.unit_id}
                                                 <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{fee.units?.unit_type}</div>
@@ -573,7 +600,7 @@ export default function MaintenanceList() {
                                                     >
                                                         <Download className="h-4 w-4" />
                                                     </Button>
-                                                    {fee.payment_status !== 'paid' && (
+                                                    {isAdmin && fee.payment_status !== 'paid' && (
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
@@ -610,16 +637,18 @@ export default function MaintenanceList() {
                                                         </Button>
                                                     )}
 
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        title="Delete Invoice"
-                                                        onClick={() => handleDelete(fee.id)}
-                                                        disabled={actionLoading === fee.id}
-                                                    >
-                                                        {actionLoading === fee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                    </Button>
+                                                    {isAdmin && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                            title="Delete Invoice"
+                                                            onClick={() => handleDelete(fee.id)}
+                                                            disabled={actionLoading === fee.id}
+                                                        >
+                                                            {actionLoading === fee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
