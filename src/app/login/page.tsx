@@ -21,6 +21,15 @@ export default function LoginPage() {
         setError(null)
 
         try {
+            // Determine if input is a phone number (simple 10 digit check)
+            let loginIdentifier = email.trim()
+            const isPhone = /^\d{10}$/.test(loginIdentifier)
+
+            if (isPhone) {
+                // Formatting for our internal placeholder system
+                loginIdentifier = `${loginIdentifier}@society.local`
+            }
+
             // Mock Login for Preview
             if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
                 // Simulate network delay
@@ -31,7 +40,7 @@ export default function LoginPage() {
             }
 
             const { error } = await supabase.auth.signInWithPassword({
-                email,
+                email: loginIdentifier,
                 password,
             })
 
@@ -40,7 +49,10 @@ export default function LoginPage() {
             router.push('/dashboard')
             router.refresh()
         } catch (err: any) {
-            setError(err.message)
+            console.error(err)
+            setError(err.message === 'Invalid login credentials'
+                ? 'Invalid details. If using phone, ensure it is registered.'
+                : err.message)
         } finally {
             setLoading(false)
         }
@@ -55,7 +67,7 @@ export default function LoginPage() {
                     <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-gradient-to-br from-primary to-purple-600 shadow-lg" />
                     <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
                     <CardDescription>
-                        Enter your email to sign in to your account
+                        Enter your Mobile Number or Email to sign in
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={handleLogin}>
@@ -66,11 +78,11 @@ export default function LoginPage() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email</label>
+                            <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Mobile Number or Email</label>
                             <input
                                 id="email"
-                                type="email"
-                                placeholder="m@example.com"
+                                type="text"
+                                placeholder="9876543210 or email@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -78,7 +90,12 @@ export default function LoginPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Password</label>
+                            <div className="flex items-center justify-between">
+                                <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Password</label>
+                                <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                                    Forgot password?
+                                </Link>
+                            </div>
                             <input
                                 id="password"
                                 type="password"
@@ -94,12 +111,6 @@ export default function LoginPage() {
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign In
                         </Button>
-                        <p className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{" "}
-                            <Link href="/register" className="font-semibold text-primary underline-offset-4 hover:underline">
-                                Sign up
-                            </Link>
-                        </p>
                     </CardFooter>
                 </form>
             </Card>
