@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Redirect logged in users from auth pages to dashboard
+    // Redirect logged in users from auth pages to dashboard (but not reset-password)
     if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register') && user) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
     }
@@ -61,5 +61,7 @@ export const config = {
         '/dashboard/:path*',
         '/login',
         '/register',
+        '/auth/callback',
+        '/reset-password',
     ],
 }
