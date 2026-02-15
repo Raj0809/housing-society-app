@@ -45,7 +45,7 @@ export interface Unit {
 }
 
 export interface MaintenanceSettings {
-    society_id: string
+    society_id: string | null
     calculation_method: 'fixed_per_unit' | 'per_sqft'
     default_amount: number // Fixed amount or Rate per sqft
     penalty_rate?: number
