@@ -957,21 +957,25 @@ export default function FacilityList() {
             }
         }
 
+        // Only send columns that exist in the DB: name, type, capacity, hourly_rate, booking_rules, per_person_applicable, is_active
         const facilityPayload: any = {
-            ...newFacility,
-            image_url: finalImageUrl,
-            status: status,
-            pricing_type: pricingType,
-            per_person_applicable: newFacility.per_person_applicable,
-            slots: pricingType === 'per_slot' ? facilitySlots.map(s => ({
-                id: Math.random().toString(36).substr(2, 9),
-                name: s.name,
-                start_time: s.start,
-                end_time: s.end,
-                price: s.price
-            })) : undefined,
+            name: newFacility.name,
+            type: newFacility.type || 'hall',
+            capacity: newFacility.capacity || null,
+            hourly_rate: newFacility.hourly_rate || 0,
+            per_person_applicable: newFacility.per_person_applicable || false,
+            is_active: true,
             booking_rules: {
                 schedule_type: scheduleType,
+                pricing_type: pricingType,
+                image_url: finalImageUrl || undefined,
+                slots: pricingType === 'per_slot' ? facilitySlots.map(s => ({
+                    id: Math.random().toString(36).substr(2, 9),
+                    name: s.name,
+                    start_time: s.start,
+                    end_time: s.end,
+                    price: s.price
+                })) : undefined,
                 morning_start: scheduleType === 'split' ? morningStart : undefined,
                 morning_end: scheduleType === 'split' ? morningEnd : undefined,
                 evening_start: scheduleType === 'split' ? eveningStart : undefined,
@@ -986,24 +990,33 @@ export default function FacilityList() {
                 setFacilities(updated as Facility[])
                 localStorage.setItem('mock_facilities', JSON.stringify(updated))
             } else {
-                await supabase.from('facilities').update(facilityPayload).eq('id', newFacility.id)
+                const { error } = await supabase.from('facilities').update(facilityPayload).eq('id', newFacility.id)
+                if (error) {
+                    console.error('Error updating facility:', error)
+                    alert('Failed to update facility: ' + error.message)
+                    return
+                }
                 const { data } = await supabase.from('facilities').select('*').eq('is_active', true)
                 if (data) setFacilities(data)
             }
             alert('Facility Updated!')
         } else {
             // Create
-            const facility: Facility = {
-                id: 'f-' + Date.now(),
-                ...facilityPayload
-            }
-
             if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
+                const facility: Facility = {
+                    id: 'f-' + Date.now(),
+                    ...facilityPayload
+                }
                 const updated = [...facilities, facility]
                 setFacilities(updated)
                 localStorage.setItem('mock_facilities', JSON.stringify(updated))
             } else {
-                await supabase.from('facilities').insert(facility)
+                const { error } = await supabase.from('facilities').insert(facilityPayload)
+                if (error) {
+                    console.error('Error creating facility:', error)
+                    alert('Failed to create facility: ' + error.message)
+                    return
+                }
                 const { data } = await supabase.from('facilities').select('*').eq('is_active', true)
                 if (data) setFacilities(data)
             }
