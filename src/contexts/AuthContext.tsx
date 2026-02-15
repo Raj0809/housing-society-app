@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: 'mock-user-id',
                 email: 'preview@example.com',
                 full_name: 'Preview User',
+                phone: '9876543210',
                 role: 'app_admin',
                 is_active: true,
                 unit_id: 'mock-unit-id',

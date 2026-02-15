@@ -16,8 +16,8 @@ export default function CommitteeList() {
                 // Mock Data request for preview
                 if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
                     setMembers([
-                        { id: '2', email: 'admin@society.com', full_name: 'Admin User', role: 'app_admin', is_active: true, created_at: '', updated_at: '' },
-                        { id: '4', email: 'jane.smith@example.com', full_name: 'Jane Smith', role: 'management', is_active: true, created_at: '', updated_at: '' },
+                        { id: '2', email: 'admin@society.com', full_name: 'Admin User', phone: '9876543210', role: 'app_admin', is_active: true, created_at: '', updated_at: '' },
+                        { id: '4', email: 'jane.smith@example.com', full_name: 'Jane Smith', phone: '9876543211', role: 'management', is_active: true, created_at: '', updated_at: '' },
                     ])
                     setLoading(false)
                     return
