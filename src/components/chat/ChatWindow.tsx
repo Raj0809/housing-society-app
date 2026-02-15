@@ -2,21 +2,31 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { ChatMessage } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Send, User as UserIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 
+// DB-aligned message type
+interface DBChatMessage {
+    id: string
+    sender_id: string
+    channel_id: string | null
+    message_text: string
+    attachments?: any
+    created_at: string
+    sender?: { full_name: string; profile_image_url?: string }
+}
+
 interface ChatWindowProps {
-    roomId?: string // 'lobby' or userId for DM
+    roomId?: string // channel id or 'lobby'
     title: string
 }
 
 export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps) {
     const { profile } = useAuth()
-    const [messages, setMessages] = useState<ChatMessage[]>([])
+    const [messages, setMessages] = useState<DBChatMessage[]>([])
     const [newMessage, setNewMessage] = useState('')
     const [sending, setSending] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -26,15 +36,13 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
 
         // Real-time subscription
         const channel = supabase
-            .channel('public:chat_messages')
+            .channel(`chat:${roomId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
-                const newMsg = payload.new as ChatMessage
+                const newMsg = payload.new as DBChatMessage
                 // Filter for current room
-                if ((roomId === 'lobby' && !newMsg.receiver_id) ||
-                    (newMsg.sender_id === roomId || newMsg.receiver_id === roomId)) {
-
-                    // Fetch sender details if needed, or optimistically display
-                    fetchMessages() // Simplest for now to get relations
+                const channelId = roomId === 'lobby' ? null : roomId
+                if (newMsg.channel_id === channelId) {
+                    fetchMessages()
                 }
             })
             .subscribe()
@@ -54,11 +62,10 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
 
     const fetchMessages = async () => {
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
-            // Mock Data
-            const MOCK_MESSAGES: ChatMessage[] = [
-                { id: '1', sender_id: 'other1', content: 'Has anyone seen the notice about water tank cleaning?', is_read: true, created_at: new Date(Date.now() - 10000000).toISOString(), sender: { full_name: 'Rahul Sharma' } },
-                { id: '2', sender_id: 'other2', content: 'Yes, it is on Tuesday.', is_read: true, created_at: new Date(Date.now() - 9000000).toISOString(), sender: { full_name: 'Priya Singh' } },
-                { id: '3', sender_id: profile?.id || 'me', content: 'Thanks for the update!', is_read: true, created_at: new Date(Date.now() - 8000000).toISOString(), sender: { full_name: profile?.full_name || 'Me' } },
+            const MOCK_MESSAGES: DBChatMessage[] = [
+                { id: '1', sender_id: 'other1', channel_id: null, message_text: 'Has anyone seen the notice about water tank cleaning?', created_at: new Date(Date.now() - 10000000).toISOString(), sender: { full_name: 'Rahul Sharma' } },
+                { id: '2', sender_id: 'other2', channel_id: null, message_text: 'Yes, it is on Tuesday.', created_at: new Date(Date.now() - 9000000).toISOString(), sender: { full_name: 'Priya Singh' } },
+                { id: '3', sender_id: profile?.id || 'me', channel_id: null, message_text: 'Thanks for the update!', created_at: new Date(Date.now() - 8000000).toISOString(), sender: { full_name: profile?.full_name || 'Me' } },
             ]
             setMessages(MOCK_MESSAGES)
             return
@@ -66,17 +73,17 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
 
         let query = supabase
             .from('chat_messages')
-            .select('*, sender:profiles(full_name, profile_image_url)')
+            .select('*, sender:profiles!chat_messages_sender_id_fkey(full_name, profile_image_url)')
             .order('created_at', { ascending: true })
 
         if (roomId === 'lobby') {
-            query = query.is('receiver_id', null)
+            query = query.is('channel_id', null)
         } else {
-            // DM logic
-            query = query.or(`and(sender_id.eq.${profile?.id},receiver_id.eq.${roomId}),and(sender_id.eq.${roomId},receiver_id.eq.${profile?.id})`)
+            query = query.eq('channel_id', roomId)
         }
 
         const { data, error } = await query
+        if (error) console.error('Error fetching messages:', error)
         if (data) setMessages(data as any)
     }
 
@@ -87,22 +94,22 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
         setSending(true)
         const msg = {
             sender_id: profile?.id,
-            receiver_id: roomId === 'lobby' ? null : roomId,
-            content: newMessage.trim(),
-            is_read: false
+            channel_id: roomId === 'lobby' ? null : roomId,
+            message_text: newMessage.trim(),
         }
 
         if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
-            const mockMsg = { ...msg, id: Date.now().toString(), created_at: new Date().toISOString(), sender: { full_name: profile?.full_name || 'Me' } }
-            setMessages(prev => [...prev, mockMsg as any])
+            const mockMsg: DBChatMessage = { ...msg, id: Date.now().toString(), created_at: new Date().toISOString(), sender: { full_name: profile?.full_name || 'Me' }, sender_id: profile?.id || 'me', channel_id: msg.channel_id || null, message_text: msg.message_text }
+            setMessages(prev => [...prev, mockMsg])
             setNewMessage('')
             setSending(false)
             return
         }
 
-        await supabase.from('chat_messages').insert(msg)
+        const { error } = await supabase.from('chat_messages').insert(msg)
+        if (error) console.error('Error sending message:', error)
         setNewMessage('')
-        fetchMessages() // Refresh to get sender info properly populated if needed
+        await fetchMessages()
         setSending(false)
     }
 
@@ -127,7 +134,7 @@ export default function ChatWindow({ roomId = 'lobby', title }: ChatWindowProps)
                                 isMe ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none"
                             )}>
                                 {!isMe && <p className="text-[10px] opacity-70 mb-0.5 font-semibold text-primary">{msg.sender?.full_name || 'Unknown'}</p>}
-                                <p>{msg.content}</p>
+                                <p>{msg.message_text}</p>
                                 <p className={cn("text-[10px] mt-1 text-right opacity-70", isMe ? "text-primary-foreground" : "text-muted-foreground")}>
                                     {format(new Date(msg.created_at), 'h:mm a')}
                                 </p>
