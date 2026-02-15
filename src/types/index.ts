@@ -34,7 +34,7 @@ export interface SocietyProfile {
 
 export interface Unit {
     id: string
-    society_id: string
+    society_id: string | null
     unit_number: string
     block_name?: string
     floor_number?: number
