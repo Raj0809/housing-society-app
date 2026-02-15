@@ -53,6 +53,11 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
+    // Protect change-password route - must be logged in
+    if (request.nextUrl.pathname === '/change-password' && !user) {
+        return NextResponse.redirect(new URL('/login', request.url))
+    }
+
     return response
 }
 
@@ -61,5 +66,7 @@ export const config = {
         '/dashboard/:path*',
         '/login',
         '/register',
+        '/change-password',
+        '/forgot-password',
     ],
 }
