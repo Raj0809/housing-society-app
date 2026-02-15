@@ -6,10 +6,12 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Mail, Phone } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function RegisterPage() {
     const router = useRouter()
+    const [regMethod, setRegMethod] = useState<'email' | 'mobile'>('email')
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -37,6 +39,21 @@ export default function RegisterPage() {
         }
 
         try {
+            let emailToRegister = formData.email
+            let phoneToSave = formData.phone
+
+            if (regMethod === 'mobile') {
+                // Validate phone
+                if (!/^\d{10}$/.test(formData.phone)) {
+                    throw new Error("Please enter a valid 10-digit mobile number")
+                }
+                // Generate internal email
+                emailToRegister = `${formData.phone}@society.local`
+                phoneToSave = formData.phone
+            } else {
+                if (!formData.email) throw new Error("Please enter a valid email")
+            }
+
             // Mock Signup for Preview
             if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder')) {
                 await new Promise(resolve => setTimeout(resolve, 800))
@@ -46,22 +63,20 @@ export default function RegisterPage() {
             }
 
             const { data, error } = await supabase.auth.signUp({
-                email: formData.email,
+                email: emailToRegister,
                 password: formData.password,
                 options: {
                     data: {
                         full_name: formData.fullName,
-                        phone: formData.phone,
+                        phone: phoneToSave, // Save phone in metadata
                         unit_number: formData.unitNumber,
-                        approval_status: 'pending'
+                        approval_status: 'pending',
+                        role: 'resident' // Explicitly set role
                     },
                 },
             })
 
             if (error) throw error
-
-            // Note: Ideally, a database trigger creates the user profile
-            // But we can also insert it here if needed, or rely on the trigger
 
             router.push('/dashboard')
             router.refresh()
@@ -91,6 +106,14 @@ export default function RegisterPage() {
                                 {error}
                             </div>
                         )}
+
+                        <Tabs defaultValue="email" value={regMethod} onValueChange={(v) => setRegMethod(v as any)} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="email">Email</TabsTrigger>
+                                <TabsTrigger value="mobile">Mobile Number</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
                         <div className="space-y-2">
                             <label htmlFor="fullName" className="text-sm font-medium leading-none">Full Name</label>
                             <input
@@ -103,30 +126,49 @@ export default function RegisterPage() {
                                 required
                             />
                         </div>
-                        <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm font-medium leading-none">Email</label>
-                            <input
-                                id="email"
-                                type="email"
-                                placeholder="m@example.com"
-                                value={formData.email}
-                                onChange={handleChange}
-                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label htmlFor="phone" className="text-sm font-medium leading-none">Phone Number</label>
-                            <input
-                                id="phone"
-                                type="tel"
-                                placeholder="+1 234 567 890"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                required
-                            />
-                        </div>
+
+                        {regMethod === 'email' ? (
+                            <div className="space-y-2">
+                                <label htmlFor="email" className="text-sm font-medium leading-none">Email</label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    placeholder="m@example.com"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    required={regMethod === 'email'}
+                                />
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <label htmlFor="phone" className="text-sm font-medium leading-none">Mobile Number</label>
+                                <input
+                                    id="phone"
+                                    type="tel"
+                                    placeholder="9876543210"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    required={regMethod === 'mobile'}
+                                />
+                            </div>
+                        )}
+
+                        {regMethod === 'email' && (
+                            <div className="space-y-2">
+                                <label htmlFor="phone" className="text-sm font-medium leading-none">Phone Number (Optional)</label>
+                                <input
+                                    id="phone"
+                                    type="tel"
+                                    placeholder="+1 234 567 890"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <label htmlFor="unitNumber" className="text-sm font-medium leading-none">Unit/Villa Number</label>
                             <input
