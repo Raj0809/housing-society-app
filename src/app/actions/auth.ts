@@ -77,7 +77,8 @@ export async function createUser(userData: {
         email_confirm: true,
         user_metadata: {
             full_name: userData.fullName,
-            phone: userData.phone
+            phone: userData.phone || undefined,
+            role: userData.role
         }
     })
 
@@ -89,28 +90,22 @@ export async function createUser(userData: {
         return { error: 'Failed to create user' }
     }
 
-    // 3. Update Profile (Trigger might handle simple creation, but we have extra fields like unit & phone/role)
-    // The trigger 'handle_new_user' inserts basic profile. We need to update it with full details.
-    // Wait for trigger or just upsert? Upsert is safer.
-
-    // Note: The trigger inserts with default 'resident' role and null phone if not in metadata.
-    // We included phone in metadata, so let's update immediately.
+    // 3. Update Profile with full details
+    // The trigger 'handle_new_user' inserts a basic profile with data from user_metadata.
+    // We update it here to ensure all fields (role, is_active, phone) are correctly set.
 
     const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({
             full_name: userData.fullName,
-            phone: userData.phone,
+            phone: userData.phone || null,
             role: userData.role as any,
             is_active: userData.isActive,
-            // We might need to handle Unit mapping here if Profiles has a unit_id or just relying on Units table owner_id?
-            // Schema shows 'units' table has 'owner_id'. Profiles doesn't have 'unit_id'.
-            // So we need to update the Unit table separately if a unit is selected.
         })
         .eq('id', newUser.user.id)
 
     if (profileError) {
-        // Cleanup?
+        console.error('Profile update failed:', profileError)
         return { error: 'User created but profile update failed: ' + profileError.message }
     }
 
