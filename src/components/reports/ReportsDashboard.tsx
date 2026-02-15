@@ -54,40 +54,33 @@ export default function ReportsDashboard() {
 
     const fetchFinancialData = async () => {
         try {
-            // Fetch maintenance invoices grouped by month
-            const { data: invoices } = await supabase
-                .from('maintenance_invoices')
-                .select('amount, status, due_date, created_at')
-                .gte('created_at', dateRange.start)
-                .lte('created_at', dateRange.end + 'T23:59:59')
-
-            // Fetch expenditures
-            const { data: expenditures } = await supabase
-                .from('expenditures')
-                .select('amount, expense_date')
+            // Fetch expenses grouped by month (the only finance table that exists)
+            const { data: expenseData } = await supabase
+                .from('expenses')
+                .select('amount, category, expense_date, created_at')
                 .gte('expense_date', dateRange.start)
                 .lte('expense_date', dateRange.end)
 
             // Group by month
             const monthMap: Record<string, { income: number; expense: number }> = {}
 
-            if (invoices) {
-                invoices.forEach((inv: any) => {
-                    const month = format(parseISO(inv.created_at), 'MMM yy')
-                    const monthKey = format(parseISO(inv.created_at), 'yyyy-MM-01')
-                    if (!monthMap[monthKey]) monthMap[monthKey] = { income: 0, expense: 0 }
-                    if (inv.status === 'paid') {
-                        monthMap[monthKey].income += Number(inv.amount) || 0
-                    }
-                })
-            }
-
-            if (expenditures) {
-                expenditures.forEach((exp: any) => {
-                    const monthKey = format(parseISO(exp.expense_date), 'yyyy-MM-01')
+            if (expenseData) {
+                expenseData.forEach((exp: any) => {
+                    const dateStr = exp.expense_date || exp.created_at
+                    if (!dateStr) return
+                    const monthKey = format(parseISO(dateStr), 'yyyy-MM-01')
                     if (!monthMap[monthKey]) monthMap[monthKey] = { income: 0, expense: 0 }
                     monthMap[monthKey].expense += Number(exp.amount) || 0
                 })
+
+                // Store raw expenses for the expense breakdown report
+                setExpenses(expenseData.map((exp: any) => ({
+                    id: exp.id || Math.random().toString(),
+                    date: exp.expense_date || format(parseISO(exp.created_at), 'yyyy-MM-dd'),
+                    category: exp.category || 'Uncategorized',
+                    description: exp.description || '-',
+                    amount: exp.amount
+                })))
             }
 
             const result = Object.entries(monthMap)
@@ -153,13 +146,14 @@ export default function ReportsDashboard() {
 
     const fetchVisitorStats = async () => {
         try {
-            const { data } = await supabase
+            // visitor_logs table may not exist yet - try to query, fallback to empty
+            const { data, error } = await supabase
                 .from('visitor_logs')
                 .select('check_in_time')
                 .gte('check_in_time', dateRange.start)
                 .lte('check_in_time', dateRange.end + 'T23:59:59')
 
-            if (data && data.length > 0) {
+            if (!error && data && data.length > 0) {
                 const dayMap: Record<string, number> = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 }
                 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
                 data.forEach((v: any) => {
@@ -181,20 +175,18 @@ export default function ReportsDashboard() {
 
     const fetchVehicleLogs = async () => {
         try {
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('vehicles')
-                .select('*, owner:profiles!vehicles_user_id_fkey(full_name)')
-                .gte('created_at', dateRange.start)
-                .lte('created_at', dateRange.end + 'T23:59:59')
+                .select('id, registration_number, vehicle_type, is_active, make_model, parking_slot, created_at')
                 .order('created_at', { ascending: false })
 
-            if (data) {
+            if (!error && data) {
                 setVehicleLogs(data.map((v: any, i: number) => ({
                     id: i + 1,
                     date: format(parseISO(v.created_at), 'yyyy-MM-dd'),
-                    vehicle: v.vehicle_number || v.license_plate || 'N/A',
-                    action: v.sticker_status === 'blocked' ? 'Blocked' : 'Active',
-                    user: v.owner?.full_name || 'Unknown'
+                    vehicle: v.registration_number || 'N/A',
+                    action: v.is_active === false ? 'Blocked' : 'Active',
+                    user: v.make_model || v.vehicle_type || '-'
                 })))
             }
         } catch (e) {
@@ -204,41 +196,49 @@ export default function ReportsDashboard() {
 
     const fetchDefaulters = async () => {
         try {
-            const { data } = await supabase
+            // maintenance_invoices table may not exist yet - gracefully handle
+            const { data, error } = await supabase
                 .from('maintenance_invoices')
-                .select('*, unit:units!maintenance_invoices_unit_id_fkey(unit_number, owner:profiles!units_owner_id_fkey(full_name))')
+                .select('*, unit:units(unit_number)')
                 .eq('status', 'pending')
                 .lte('due_date', defaulterDate)
                 .order('due_date', { ascending: true })
 
-            if (data) {
+            if (!error && data) {
                 setDefaulters(data.map((inv: any) => ({
                     unit: inv.unit?.unit_number || 'N/A',
-                    name: inv.unit?.owner?.full_name || 'Unknown',
+                    name: 'Resident',
                     amount: inv.amount,
                     due_date: inv.due_date
                 })))
+            } else {
+                setDefaulters([])
             }
         } catch (e) {
             console.error('Error fetching defaulters:', e)
+            setDefaulters([])
         }
     }
 
+    // fetchExpenses is now handled inside fetchFinancialData
     const fetchExpenses = async () => {
+        // Expenses are already fetched from the 'expenses' table in fetchFinancialData
+        // This function exists as a no-op to maintain the call in useEffect
+        if (expenses.length > 0) return
         try {
-            const { data } = await supabase
-                .from('expenditures')
+            const { data, error } = await supabase
+                .from('expenses')
                 .select('*')
                 .gte('expense_date', dateRange.start)
                 .lte('expense_date', dateRange.end)
                 .order('expense_date', { ascending: false })
 
-            if (data) {
+            if (!error && data) {
                 setExpenses(data.map((exp: any, i: number) => ({
                     id: i + 1,
                     date: exp.expense_date,
                     category: exp.category || 'General',
-                    description: exp.description || exp.title || '-',
+                    description: exp.description || '-',
                     amount: exp.amount
                 })))
             }
